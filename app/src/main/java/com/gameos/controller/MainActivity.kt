@@ -10,6 +10,8 @@ import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
+import android.widget.EditText
+import android.text.InputType
 
 class MainActivity : Activity() {
     private lateinit var status: TextView
@@ -50,6 +52,44 @@ class MainActivity : Activity() {
                 if (svc == null) Toast.makeText(this, "Accessibility service not enabled", Toast.LENGTH_LONG).show()
                 else svc.gesture(width / 2f, height / 2f, width / 2f, height / 2f, 100L)
             }, 3000L)
+        }
+        root.addView(heading("PHASE 2 — ICON DRAG TEST", 19f))
+        root.addView(heading("Enter source and target coordinates in screen pixels. Test on a spare icon. A 5-second countdown gives you time to open DIY Home.", 14f))
+        fun coordinate(label: String, key: String, fallback: String): EditText {
+            val input = EditText(this).apply {
+                hint = label
+                setText(prefs.getString(key, fallback))
+                inputType = InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_DECIMAL
+                setTextColor(Color.WHITE)
+                setHintTextColor(Color.LTGRAY)
+            }
+            root.addView(input)
+            return input
+        }
+        val sx = coordinate("Source X", "sx", "180")
+        val sy = coordinate("Source Y", "sy", "600")
+        val tx = coordinate("Target X", "tx", "550")
+        val ty = coordinate("Target Y", "ty", "600")
+        action("Save icon movement") {
+            prefs.edit().putString("sx", sx.text.toString()).putString("sy", sy.text.toString())
+                .putString("tx", tx.text.toString()).putString("ty", ty.text.toString()).apply()
+            Toast.makeText(this, "Movement saved", Toast.LENGTH_SHORT).show()
+        }
+        action("Test saved drag (5-second countdown)") {
+            val values = listOf("sx", "sy", "tx", "ty").map { prefs.getString(it, "")?.toFloatOrNull() }
+            if (values.any { it == null }) {
+                Toast.makeText(this, "Save valid coordinates first", Toast.LENGTH_LONG).show()
+            } else {
+                Toast.makeText(this, "Open DIY Home now — drag begins in 5 seconds", Toast.LENGTH_LONG).show()
+                android.os.Handler(mainLooper).postDelayed({
+                    val service = GestureService.current
+                    if (service == null) {
+                        Toast.makeText(this, "Accessibility not connected", Toast.LENGTH_LONG).show()
+                    } else {
+                        service.dragIcon(values[0]!!, values[1]!!, values[2]!!, values[3]!!)
+                    }
+                }, 5000L)
+            }
         }
         action("Open Samsung Home") {
             val i = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME)
