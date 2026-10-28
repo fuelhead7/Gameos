@@ -1,0 +1,32 @@
+name: Build GameOS Icon Pack
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'iconpack/**'
+      - '.github/workflows/iconpack.yml'
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.13'
+      - name: Configure Android SDK
+        run: |
+          echo "ANDROID_HOME=$ANDROID_SDK_ROOT" >> "$GITHUB_ENV"
+          "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" --install "platforms;android-35" "build-tools;35.0.0"
+          yes | "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null || true
+      - name: Prepare artwork and icon mappings
+        run: python3 iconpack/prepare_icons.py
+      - name: Build icon pack
+        run: gradle :iconpack:assembleDebug --no-daemon
+      - uses: actions/upload-artifact@v4
+        with:
+          name: GameOS-Comic-Icons-APK
+          path: iconpack/build/outputs/apk/debug/*.apk
