@@ -3,10 +3,13 @@ package com.gameos.controller
 import android.accessibilityservice.AccessibilityService
 import android.accessibilityservice.GestureDescription
 import android.graphics.Path
+import android.os.Handler
+import android.os.Looper
 import android.view.accessibility.AccessibilityEvent
 
 class GestureService : AccessibilityService() {
     companion object { var current: GestureService? = null }
+    private val handler = Handler(Looper.getMainLooper())
     override fun onServiceConnected() { super.onServiceConnected(); current = this }
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {}
     override fun onInterrupt() {}
@@ -14,25 +17,42 @@ class GestureService : AccessibilityService() {
 
     fun gesture(x1: Float, y1: Float, x2: Float, y2: Float, duration: Long): Boolean {
         val path = Path().apply { moveTo(x1, y1); lineTo(x2, y2) }
-        val stroke = GestureDescription.StrokeDescription(path, 0L, duration)
-        return dispatchGesture(GestureDescription.Builder().addStroke(stroke).build(), null, null)
+        return dispatchGesture(GestureDescription.Builder()
+            .addStroke(GestureDescription.StrokeDescription(path, 0L, duration))
+            .build(), null, handler)
     }
 
-    fun dragIcon(x1: Float, y1: Float, x2: Float, y2: Float): Boolean {
-        // First stroke holds the icon without lifting; second continues as a drag.
-        val hold = Path().apply { moveTo(x1, y1) }
-        val first = GestureDescription.StrokeDescription(hold, 0L, 650L, true)
-        val move = Path().apply {
+    fun dragIcon(x1: Float, y1: Float, x2: Float, y2: Float, report: (String) -> Unit): Boolean {
+        // One continuous touch: hold at source for 900ms, then move smoothly over 1.2s.
+        // Repeated path points do not guarantee timing; use a continued stroke instead.
+        val holdPath = Path().apply { moveTo(x1, y1) }
+        val hold = GestureDescription.StrokeDescription(holdPath, 0L, 900L, true)
+        val movePath = Path().apply {
             moveTo(x1, y1)
-            lineTo(x1 + 5f, y1 + 5f)
-            lineTo(x2, y2)
-        }
-        val firstGesture = GestureDescription.Builder().addStroke(first).build()
-        return dispatchGesture(firstGesture, object : GestureResultCallback() {
-            override fun onCompleted(gestureDescription: GestureDescription?) {
-                val second = first.continueStroke(move, 0L, 850L, false)
-                dispatchGesture(GestureDescription.Builder().addStroke(second).build(), null, null)
+            val steps = 24
+            for (i in 1..steps) {
+                val t = i.toFloat() / steps
+                lineTo(x1 + (x2 - x1) * t, y1 + (y2 - y1) * t)
             }
-        }, null)
+        }
+        val holdAccepted = dispatchGesture(
+            GestureDescription.Builder().addStroke(hold).build(),
+            object : GestureResultCallback() {
+                override fun onCompleted(description: GestureDescription?) {
+                    val continuation = hold.continueStroke(movePath, 0L, 1200L, false)
+                    val moveAccepted = dispatchGesture(
+                        GestureDescription.Builder().addStroke(continuation).build(),
+                        object : GestureResultCallback() {
+                            override fun onCompleted(description: GestureDescription?) { report("Drag completed") }
+                            override fun onCancelled(description: GestureDescription?) { report("Drag cancelled by Android") }
+                        }, handler
+                    )
+                    if (!moveAccepted) report("Drag dispatch rejected")
+                }
+                override fun onCancelled(description: GestureDescription?) { report("Long-press cancelled") }
+            }, handler
+        )
+        if (!holdAccepted) report("Long-press dispatch rejected")
+        return holdAccepted
     }
 }
