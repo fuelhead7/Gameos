@@ -12,6 +12,8 @@ import android.widget.TextView
 import android.widget.Toast
 import android.widget.EditText
 import android.text.InputType
+import android.util.DisplayMetrics
+import android.view.WindowManager
 
 class MainActivity : Activity() {
     private lateinit var status: TextView
@@ -38,7 +40,7 @@ class MainActivity : Activity() {
             startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
         }
         action("2. Save screen dimensions") {
-            val dm = resources.displayMetrics
+            val dm = DisplayMetrics().also { (getSystemService(WINDOW_SERVICE) as WindowManager).defaultDisplay.getRealMetrics(it) }
             prefs.edit().putInt("width", dm.widthPixels).putInt("height", dm.heightPixels).apply()
             Toast.makeText(this, "Saved: ${dm.widthPixels} x ${dm.heightPixels}", Toast.LENGTH_LONG).show()
             updateStatus()
@@ -66,10 +68,10 @@ class MainActivity : Activity() {
             root.addView(input)
             return input
         }
-        val sx = coordinate("Source X", "sx", "180")
-        val sy = coordinate("Source Y", "sy", "600")
-        val tx = coordinate("Target X", "tx", "550")
-        val ty = coordinate("Target Y", "ty", "600")
+        val sx = coordinate("Source X (screenshot pixels)", "sx", "242")
+        val sy = coordinate("Source Y (screenshot pixels)", "sy", "805")
+        val tx = coordinate("Target X (screenshot pixels)", "tx", "242")
+        val ty = coordinate("Target Y (screenshot pixels)", "ty", "485")
         action("Save icon movement") {
             prefs.edit().putString("sx", sx.text.toString()).putString("sy", sy.text.toString())
                 .putString("tx", tx.text.toString()).putString("ty", ty.text.toString()).apply()
@@ -86,7 +88,21 @@ class MainActivity : Activity() {
                     if (service == null) {
                         Toast.makeText(this, "Accessibility not connected", Toast.LENGTH_LONG).show()
                     } else {
-                        service.dragIcon(values[0]!!, values[1]!!, values[2]!!, values[3]!!)
+                        val dm = DisplayMetrics().also {
+                            (getSystemService(WINDOW_SERVICE) as WindowManager).defaultDisplay.getRealMetrics(it)
+                        }
+                        val scaleX = dm.widthPixels / 709f
+                        val scaleY = dm.heightPixels / 1536f
+                        service.dragIcon(
+                            values[0]!! * scaleX, values[1]!! * scaleY,
+                            values[2]!! * scaleX, values[3]!! * scaleY
+                        ) { message ->
+                            runOnUiThread {
+                                prefs.edit().putString("last_result", message).apply()
+                                Toast.makeText(this, message, Toast.LENGTH_LONG).show()
+                                updateStatus()
+                            }
+                        }
                     }
                 }, 5000L)
             }
@@ -95,12 +111,12 @@ class MainActivity : Activity() {
             val i = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME)
             startActivity(i)
         }
-        root.addView(heading("Only run gesture tests on your own home screen. v0.1 does not move icons or change Good Lock settings.", 15f))
+        root.addView(heading("Only run gesture tests on your own home screen. Drag tests may rearrange icons.", 15f))
         setContentView(root)
     }
     override fun onResume() { super.onResume(); updateStatus() }
     private fun updateStatus() {
-        status.text = "Accessibility: " + if (GestureService.current != null) "Connected" else "Not connected" +
-            " | Saved size: ${prefs.getInt("width", 0)} x ${prefs.getInt("height", 0)}"
+        val connection = if (GestureService.current != null) "Connected" else "Not connected"
+        status.text = "Accessibility: $connection | Saved size: ${prefs.getInt("width", 0)} x ${prefs.getInt("height", 0)} | Last drag: ${prefs.getString("last_result", "Not tested")}"
     }
 }
