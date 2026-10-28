@@ -27,10 +27,12 @@ class GestureService : AccessibilityService() {
             lineTo(x1 + 5f, y1 + 5f)
             lineTo(x2, y2)
         }
-        val second = first.continueStroke(move, 650L, 850L, false)
-        return dispatchGesture(
-            GestureDescription.Builder().addStroke(first).addStroke(second).build(),
-            null, null
-        )
+        val firstGesture = GestureDescription.Builder().addStroke(first).build()
+        return dispatchGesture(firstGesture, object : GestureResultCallback() {
+            override fun onCompleted(gestureDescription: GestureDescription?) {
+                val second = first.continueStroke(move, 0L, 850L, false)
+                dispatchGesture(GestureDescription.Builder().addStroke(second).build(), null, null)
+            }
+        }, null)
     }
 }
