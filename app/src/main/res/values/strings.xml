@@ -1,0 +1,4 @@
+<resources>
+<string name="app_name">GameOS Controller</string>
+<string name="accessibility_description">Performs only user-requested taps and swipes for home screen layout calibration. No automatic monitoring, data reading, or background gestures.</string>
+</resources>
