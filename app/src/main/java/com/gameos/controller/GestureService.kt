@@ -17,4 +17,18 @@ class GestureService : AccessibilityService() {
         val stroke = GestureDescription.StrokeDescription(path, 0L, duration)
         return dispatchGesture(GestureDescription.Builder().addStroke(stroke).build(), null, null)
     }
+
+    fun dragIcon(x1: Float, y1: Float, x2: Float, y2: Float): Boolean {
+        val path = Path().apply {
+            moveTo(x1, y1)
+            lineTo(x1, y1)
+            // Tiny movement helps transition from long press to drag.
+            lineTo(x1 + 3f, y1 + 3f)
+            lineTo(x2, y2)
+        }
+        // GestureDescription does not support timed path segments directly.
+        // A 1.4-second stroke provides a deliberate, slow drag.
+        val stroke = GestureDescription.StrokeDescription(path, 0L, 1400L)
+        return dispatchGesture(GestureDescription.Builder().addStroke(stroke).build(), null, null)
+    }
 }
