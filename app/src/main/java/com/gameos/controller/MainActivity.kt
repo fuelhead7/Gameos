@@ -17,6 +17,7 @@ import android.view.WindowManager
 
 class MainActivity : Activity() {
     private lateinit var status: TextView
+    private var stopLayout = false
     private val prefs by lazy { getSharedPreferences("gameos", MODE_PRIVATE) }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -106,6 +107,60 @@ class MainActivity : Activity() {
                     }
                 }, 5000L)
             }
+        }
+        root.addView(heading("PHASE 3 — AUTOMATIC PS5 ROW", 19f))
+        root.addView(heading("Based on your latest 709 x 1536 screenshot. Moves YouTube, Play Store, Gmail and Photos into a horizontal row. Keep the screen unlocked and unchanged during the countdown.", 14f))
+        action("Arrange 4 icons automatically (8-second countdown)") {
+            if (GestureService.current == null) {
+                Toast.makeText(this, "Enable accessibility first", Toast.LENGTH_LONG).show()
+            } else {
+                stopLayout = false
+                prefs.edit().putString("last_result", "Auto layout scheduled").apply()
+                updateStatus()
+                val handler = android.os.Handler(mainLooper)
+                val moves = listOf(
+                    floatArrayOf(232f, 500f, 105f, 620f),  // YouTube
+                    floatArrayOf(106f, 875f, 270f, 620f),  // Play Store
+                    floatArrayOf(413f, 765f, 435f, 620f),  // Gmail
+                    floatArrayOf(620f, 710f, 600f, 620f)   // Photos
+                )
+                val names = listOf("YouTube", "Play Store", "Gmail", "Photos")
+                fun log(message: String) {
+                    prefs.edit().putString("last_result", message).apply()
+                    updateStatus()
+                }
+                fun runMove(index: Int) {
+                    if (stopLayout) { log("Auto layout stopped"); return }
+                    if (index >= moves.size) { log("Auto layout completed: 4 drags dispatched"); return }
+                    val service = GestureService.current
+                    if (service == null) { log("Accessibility disconnected"); return }
+                    val dm = DisplayMetrics().also {
+                        (getSystemService(WINDOW_SERVICE) as WindowManager).defaultDisplay.getRealMetrics(it)
+                    }
+                    val v = moves[index]
+                    log("Moving ${names[index]} (${index + 1}/4)")
+                    service.dragIcon(
+                        v[0] * dm.widthPixels / 709f, v[1] * dm.heightPixels / 1536f,
+                        v[2] * dm.widthPixels / 709f, v[3] * dm.heightPixels / 1536f
+                    ) { result ->
+                        runOnUiThread {
+                            if (result != "Drag completed") {
+                                log("${names[index]}: $result; sequence stopped")
+                                stopLayout = true
+                            } else if (!stopLayout) {
+                                handler.postDelayed({ runMove(index + 1) }, 1400L)
+                            }
+                        }
+                    }
+                }
+                Toast.makeText(this, "Return to your unchanged home screen now — starts in 8 seconds", Toast.LENGTH_LONG).show()
+                handler.postDelayed({ runMove(0) }, 8000L)
+            }
+        }
+        action("STOP automatic layout") {
+            stopLayout = true
+            prefs.edit().putString("last_result", "Stop requested; current drag may finish").apply()
+            updateStatus()
         }
         action("Open Samsung Home") {
             val i = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME)
