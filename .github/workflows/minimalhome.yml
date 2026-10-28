@@ -1,0 +1,32 @@
+name: Build Minimal Home APK
+on:
+  workflow_dispatch:
+  push:
+    branches: [feature/minimalist-home]
+    paths:
+      - 'minimalhome/**'
+      - 'settings.gradle.kts'
+      - '.github/workflows/minimalhome.yml'
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.13'
+      - name: Android SDK
+        run: |
+          "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" --install "platforms;android-35" "build-tools;35.0.0"
+      - name: Build
+        run: gradle --no-daemon :minimalhome:assembleDebug
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Minimal-Home-debug-apk
+          path: minimalhome/build/outputs/apk/debug/minimalhome-debug.apk
